@@ -1,0 +1,50 @@
+---
+- name: Configurando ferramentas do cluster (Docker, Kubectl, Kind)
+  hosts: all 
+  become: true
+
+  tasks:
+
+    - name: Atualizando o cache do apt
+      apt:
+        update_cache: yes
+
+    - name: Instalando utilitários básicos (Vim e Curl)
+      apt:
+        name:
+          - vim
+          - curl
+        state: present
+
+    - name: Baixando e instalando o Docker via script oficial
+      shell: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sh get-docker.sh
+      args:
+        creates: /usr/bin/docker  # Evita rodar novamente se o Docker já estiver instalado
+
+    - name: Baixando o binário do kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl" # Versão fixa evita sub-shells instáveis
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+
+    - name: Baixando e instalando o Kind
+      get_url:
+        url: https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64  # Atualizado para uma v0.2X estável recente
+        dest: /usr/local/bin/kind
+        mode: '0755'
+        
+    - name: Garantir que o grupo docker existe
+      group:
+        name: docker
+        state: present
+
+    - name: Adicionar usuario vagrant ao grupo docker
+      user:
+        name: vagrant
+        groups: docker
+        append: yes  # Mantém os outros grupos que o usuário já tinha
+
+    - name: Resetar conexao ssh para aplicar as permissões do grupo imediatamente
+      meta: reset_connection
