@@ -1,1 +1,0 @@
-{"dependencies":[["net-ssh",[">= 2.6.5","< 8.0.0"]],["net-scp",[">= 1.1"]],["log4r",["~> 1.1"]],["vagrant-scp",["= 0.5.9"]]],"checksum":"3a748297228bcad6ac0c49658cc0b40995fbe5af8f4dc32e1e79e630d4532eb6","vagrant_version":"2.4.9"}
