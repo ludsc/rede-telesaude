@@ -1,0 +1,9 @@
+- name: Aplicando as regras de negócio nas etiquetas dos Workers
+  hosts: master
+  become: true
+  tasks:
+  - name: Aplicar experimentos do Chaos Mesh
+    kubernetes.core.k8s:
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        definition: "{{ lookup('file', './yaml-kube/chaos-mesh.yaml') }}"
+        state: present

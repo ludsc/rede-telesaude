@@ -1,50 +1,104 @@
 ---
-- name: Configurando ferramentas do cluster (Docker, Kubectl, Kind)
-  hosts: all 
+# --- ETAPA 1: PREPARAÇÃO COMUM PARA TODAS AS VMS ---
+- name: Preparando o ambiente comum do cluster
+  hosts: all
   become: true
-
   tasks:
-
     - name: Atualizando o cache do apt
       apt:
         update_cache: yes
+        cache_valid_time: 3600
 
-    - name: Instalando utilitários básicos (Vim e Curl)
+    - name: Instalando utilitários básicos e dependências Python
       apt:
         name:
           - vim
           - curl
+          - python3-pip
+          - python3-kubernetes # Já instala a dependência do K8s direto pelo sistema de forma limpa
         state: present
-
-    - name: Baixando e instalando o Docker via script oficial
-      shell: |
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sh get-docker.sh
-      args:
-        creates: /usr/bin/docker  # Evita rodar novamente se o Docker já estiver instalado
 
     - name: Baixando o binário do kubectl
       get_url:
-        url: "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl" # Versão fixa evita sub-shells instáveis
+        url: "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
         dest: /usr/local/bin/kubectl
         mode: '0755'
 
-    - name: Baixando e instalando o Kind
-      get_url:
-        url: https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64  # Atualizado para uma v0.2X estável recente
-        dest: /usr/local/bin/kind
-        mode: '0755'
-        
-    - name: Garantir que o grupo docker existe
-      group:
-        name: docker
-        state: present
 
-    - name: Adicionar usuario vagrant ao grupo docker
-      user:
-        name: vagrant
-        groups: docker
-        append: yes  # Mantém os outros grupos que o usuário já tinha
+# --- ETAPA 2: CONFIGURAÇÃO DO NÓ MASTER (TELECONSULTA) ---
+- name: Instalando o K3s Master na VM Teleconsulta
+  hosts: master
+  become: true
+  tasks:
+    - name: Baixando e executando o script do K3s Server forçando o IP público
+      shell: |
+        curl -sfL https://get.k3s.io | sh -s - server \
+          --bind-address=192.168.56.30 \
+          --node-ip=192.168.56.30 \
+          --advertise-address=192.168.56.30
+      args:
+        creates: /usr/local/bin/k3s
 
-    - name: Resetar conexao ssh para aplicar as permissões do grupo imediatamente
-      meta: reset_connection
+    - name: Garantir que o firewall não está bloqueando o Kubernetes (Porta 6443 e 10250)
+      shell: |
+        iptables -F
+        iptables -P INPUT ACCEPT
+        iptables -P FORWARD ACCEPT
+      ignore_errors: yes
+
+    - name: Capturando o token do cluster gerado pelo Master
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_b64
+
+    - name: Salvando o token em uma variável limpa
+      set_fact:
+        k3s_token: "{{ k3s_token_b64['content'] | b64decode | trim }}"
+
+    - name: Etiquetando o nó master para Teleconsultoria
+      shell: |
+        kubectl label node {{ inventory_hostname }} carga=teleconsulta --overwrite
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      ignore_errors: yes
+    
+    - name: Ajuste para que o kubectl funcione corretamente no usuario vagrant
+      shell: |
+        mkdir -p /home/vagrant/.kube
+        cp /etc/rancher/k3s/k3s.yaml /home/vagrant/.kube/config
+        chown vagrant:vagrant /home/vagrant/.kube/config
+      args:
+        creates: /home/vagrant/.kube/config
+
+
+# --- ETAPA 3: CONFIGURAÇÃO DOS NÓS WORKERS (TELEMETRIA E VIDEO) ---
+- name: Conectando os nós Workers ao Master
+  hosts: workers
+  become: true
+  tasks:
+    - name: Baixando e executando o script do K3s Agent apontando para o Teleconsulta
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_URL="https://192.168.56.30:6443" K3S_TOKEN="{{ hostvars[groups['master'][0]]['k3s_token'] }}" sh -s - agent \
+          --node-ip={{ ansible_host }}
+      args:
+        creates: /usr/local/bin/k3s-agent
+
+
+# --- ETAPA 4: ETIQUETANDO OS WORKERS E DEPLOY ---
+- name: Aplicando as regras de negócio nas etiquetas dos Workers
+  hosts: master
+  become: true
+  tasks:
+    - name: Etiquetando o nó telemetria
+      shell: |
+        kubectl label node telemetria carga=telemetria --overwrite
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      ignore_errors: yes
+
+    - name: Etiquetando o nó video
+      shell: |
+        kubectl label node video carga=video --overwrite
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      ignore_errors: yes

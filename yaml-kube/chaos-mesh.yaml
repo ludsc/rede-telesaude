@@ -1,0 +1,36 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: delay-video-cirurgico
+  namespace: saude
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - saude
+    labelSelectors:
+      app: "video-cirurgico"
+  delay:
+    latency: '250ms'  # Adiciona 250ms de atraso fixo
+    jitter: '20ms'    # Variação de instabilidade real
+  direction: to
+  duration: '5m'      # O teste dura 5 minutos e desliga sozinho
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: perda-telemetria
+  namespace: saude
+spec:
+  action: loss
+  mode: all
+  selector:
+    namespaces:
+      - saude
+    labelSelectors:
+      app: "broker-mqtt"
+  loss:
+    loss: '15%'       # Descarta 15% dos pacotes
+  direction: to
+  duration: '5m'
