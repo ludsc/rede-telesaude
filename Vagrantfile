@@ -16,8 +16,8 @@ Vagrant.configure("2") do |config|
     teleconsulta.vm.network "private_network", ip: "192.168.56.30"
     
     teleconsulta.vm.provider "virtualbox" do |vb|
-      vb.memory = 2048 # Aumentado para 2GB para aguentar o Chaos Mesh
-      vb.cpus = 1
+      vb.memory = 2048 
+      vb.cpus = 1 #algo
     end
   end
 
@@ -27,7 +27,7 @@ Vagrant.configure("2") do |config|
     telemetria.vm.network "private_network", ip: "192.168.56.40"
     
     telemetria.vm.provider "virtualbox" do |vb|
-      vb.memory = 768  # Mantido enxuto
+      vb.memory = 768  
       vb.cpus = 1
     end
   end
@@ -38,19 +38,24 @@ Vagrant.configure("2") do |config|
     video.vm.network "private_network", ip: "192.168.56.50"
     
     video.vm.provider "virtualbox" do |vb|
-      vb.memory = 768 # Reduzido ligeiramente para equilibrar o host, agnhost é leve
+      vb.memory = 768 
       vb.cpus = 1
     end
-  end
-  # --- PROVISIONADOR GLOBAL ---
-  # Colocado fora dos blocos individuais, ele só roda depois que TODAS as VMs acima estiverem 100% ativas.
-  config.vm.provision "ansible" do |ansible|
-    ansible.playbook = "conf-geral.yml"
-    ansible.inventory_path = "hosts.ini"
-    ansible.limit = "all"    
-  end
-  config.vm.provision "ansible" do |ansible|
-    ansible.inventory_path = "hosts.ini"
-    ansible.playbook = "kube-up.yml"
+
+# --- PROVISIONADORES SEQUENCIAIS NOMEADOS ---
+    
+    # Passo A: Configuração de pacotes comuns do SO
+    video.vm.provision "config_geral", type: "ansible" do |ansible|
+      ansible.playbook = "conf-geral.yml"
+      ansible.inventory_path = "hosts.ini"
+      ansible.limit = "all"    
+    end
+
+    # Passo B: Instalação e configuração do K3s (Só roda se o de cima passar)
+    video.vm.provision "instalacao_kube", type: "ansible" do |ansible|
+      ansible.inventory_path = "hosts.ini"
+      ansible.playbook = "kube-up.yml"
+      ansible.limit = "all" # Garantir que o limite englobe o inventário
+    end
   end
 end

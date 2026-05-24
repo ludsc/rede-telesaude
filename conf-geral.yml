@@ -84,17 +84,29 @@
         creates: /usr/local/bin/k3s-agent
 
 
-# --- ETAPA 4: ETIQUETANDO OS WORKERS E DEPLOY ---
+# --- ETAPA 4: ETIQUETANDO OS WORKERS AND DEPLOY ---
 - name: Aplicando as regras de negócio nas etiquetas dos Workers
-  hosts: master
+  hosts: all
   become: true
   tasks:
+    - name: Aguardar até que todos os nós Workers apareçam na API do K3s
+      shell: |
+        kubectl get nodes | grep -E "telemetria|video" | wc -l
+      register: nodes_count
+      until: nodes_count.stdout == "2"
+      retries: 12
+      delay: 5
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      when: inventory_hostname == 'teleconsulta'
+
     - name: Etiquetando o nó telemetria
       shell: |
         kubectl label node telemetria carga=telemetria --overwrite
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       ignore_errors: yes
+      when: inventory_hostname == 'teleconsulta'
 
     - name: Etiquetando o nó video
       shell: |
@@ -102,3 +114,4 @@
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       ignore_errors: yes
+      when: inventory_hostname == 'teleconsulta' #algo

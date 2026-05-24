@@ -6,7 +6,7 @@ Este projeto apresenta o design, implementação e validação de uma infraestru
 
 ## 🎯 Objetivo do Projeto
 
-O objetivo principal é prover uma rede de comunicação dedicada, isolada e de alta performance para garantir a operação contínua e segura de três aplicações pilares da saúde digital:
+O objetivo principal é prover  rede de comunicação dedicada, isolada e de alta performance para garantir a operação contínua e segura de três aplicações pilares da saúde digital:
 
 1. **Teleconsulta Clínica (`Nó: teleconsulta`):** Canal de comunicação HTTP/WebSocket para suporte a consultas médicas remotas e interações em tempo real.
 2. **Telemetria de Sinais Vitais (`Nó: telemetria`):** Broker MQTT (`Eclipse Mosquitto`) responsável pelo recebimento contínuo de streams de dados críticos de IoT médica (ex: batimentos cardíacos, oximetria de leitos de UTI).
